@@ -27,37 +27,52 @@ gh cs code -c <name>
 # Create an index.js file and write a simple web server
 #!/usr/env node
 /**
- * Basic webserver that runs on port :3000
+ * Webserver for the webapp listening to port
+ * 3005
  */
-const http = require('http');
-const port = process.env.PORT || 3005;
 
-// Create a server
-const server = http.createServer(function (req, res) {
-  // Get request ip address
+const http = require('http');
+const port = process.env.port || 3005;
+
+// Create an http server instance
+const server = http.createServer((req, res) => {
+  // Get the request ip address
   const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  // Return response based on request path
-  if (req.url === '/') {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end('<h1>Hello World</h1>\n');
-  } else if (req.url === '/api/data') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify([1, 2, 3]));
-  } else {
-    res.writeHead(404, { 'Content-Type': 'text/html' });
-    res.end('<h1>404 Not Found</h1>');
+  // Get the request url
+  const url = req.url;
+  // Get the request method
+  const method = req.method;
+  switch(url) {
+    case '/':
+      res.writeHead(200, {'Content-Type': 'text/html'});
+      res.end('<h1>Hello World</h1>');
+      break;
+    case '/api/data':
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify([1,2,3,4,5]));
+      break;
+    default:
+      res.writeHead(404, {'Content-Type': 'text/html'});
+      res.end('<h1>404 Not Found</h1>');
+      break;
   }
 });
 
-// Start server
+// Start the server 
 server.listen(port, () => {
-  console.log(`Server running at http://127.0.0.1:${port}/`);
+  console.log(`Server is listening on port ${port}`);
 });
 ```
 
 ## Create the VM and deploy
 
 ```bash
+# Install azure-cli
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Authenticate azure-cli
+az login
+
 # Create a new resource group
 az group create --name ModernDevDemoRG --location westeurope
 
@@ -82,10 +97,10 @@ az vm run-command invoke \
 az vm open-port --port 3005 --resource-group ModernDevDemoRG --name theMicroservice
 
 # SSH into the VM
-ssh -i ~/.ssh/id_rsa sysadmin@20.76.204.25
+ssh -i ~/.ssh/id_rsa sysadmin@20.31.113.139
 
 # Deploy & run the service
-HOSTNAME='20.76.204.25' && \
+HOSTNAME='20.31.113.139' && \
 USERNAME='sysadmin' && \
 WORK_DIR='/home/sysadmin/service/' && \
 ssh -i ~/.ssh/id_rsa $USERNAME@$HOSTNAME "mkdir -p $WORK_DIR" && \
@@ -102,7 +117,7 @@ curl -G http://$HOSTNAME:3005/ap
 
 ```bash
 # Add secrets to the repository
-HOSTNAME='20.76.204.25'
+HOSTNAME='20.31.113.139'
 USERNAME='sysadmin'
 SSH_DEPLOYMENT_PRIVATE_KEY=$(cat ~/.ssh/id_rsa)
 ```
@@ -170,6 +185,10 @@ jobs:
       - name: Setup tmate session
         if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
+```
+
+```bash
+gh run watch
 ```
 
 ## Nuke the setup
