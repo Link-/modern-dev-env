@@ -13,7 +13,7 @@ gh repo clone bayrouth/the-microservice
 echo "# The Microservice" > README.md
 git add .
 git commit -S -m "Add README.md"
-git push origin main
+git push -u origin main
 
 # Go to the repo
 gh repo view --web
@@ -25,12 +25,11 @@ gh cs list
 gh cs code -c <name>
 
 # Create an index.js file and write a simple web server
-#!/usr/env node
+#!/usr/bin/env node
 /**
  * Webserver for the webapp listening to port
  * 3005
  */
-
 const http = require('http');
 const port = process.env.port || 3005;
 
@@ -62,6 +61,11 @@ const server = http.createServer((req, res) => {
 server.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
 });
+
+# Push the changes
+git add .
+git commit -S -m "Add web server implementation"
+git push -u origin main
 ```
 
 ## Create the VM and deploy
@@ -76,51 +80,55 @@ az login
 # Create a new resource group
 az group create --name ModernDevDemoRG --location westeurope
 
-# Create the VM
-az vm create \
+# Create a new service principal for our app
+az role assignment create \
+  --role contributor \
+  --subscription aa9ba7ff-8cbd-4fff-a0a9-bd9487062766 \
+  --assignee-object-id 4bac9cd2-d03d-4b13-9728-e8e5bd0bba85 \
+  --scope /subscriptions/aa9ba7ff-8cbd-4fff-a0a9-bd9487062766/resourceGroups/ModernDevDemoRG/providers/Microsoft.Web/sites/ \
+  --assignee-principal-type ServicePrincipal
+
+az role assignment create --role contributor --subscription $subscriptionId --assignee-object-id  $assigneeObjectId --scopes /subscriptions/$subscriptionId/resourceGroups/$resourceGroupName/providers/Microsoft.Web/sites/--assignee-principal-type ServicePrincipal
+
+# Configure OIDC secrets on the repo
+# 70c59516-9e96-43f5-81c3-ab9bd78176e2
+gh secret set AZURE_TENANT_ID \
+  -R bayrouth/the-microservice \
+  --body (az account list --query "[0].tenantId" --output tsv)
+
+# 4bac9cd2-d03d-4b13-9728-e8e5bd0bba85
+gh secret set AZURE_CLIENT_ID \
+  -R bayrouth/the-microservice \
+  --body (az ad app list --query "[?displayName=='github-actions'].appId | [0]" --output tsv)
+
+# aa9ba7ff-8cbd-4fff-a0a9-bd9487062766
+gh secret set AZURE_SUBSCRIPTION_ID \
+  -R bayrouth/the-microservice \
+  --body (az account list --query "[0].id" --output tsv)
+
+# Create the app service plan
+az appservice plan create \
+  --name the-microservice-plan-2022 \
   --resource-group ModernDevDemoRG \
-  --name theMicroservice \
-  --image Debian \
   --location westeurope \
-  --public-ip-sku Standard \
-  --admin-username sysadmin \
-  --generate-ssh-keys
+  --sku FREE \
+  --is-linux
 
-# Install Node
-az vm run-command invoke \
-   --resource-group ModernDevDemoRG \
-   --name theMicroservice \
-   --command-id RunShellScript \
-   --scripts "sudo apt-get update && sudo apt-get install -y nodejs"
+# List available runtimes
+az webapp list-runtimes --os-type linux
 
-# Open the port 3005 to the world
-az vm open-port --port 3005 --resource-group ModernDevDemoRG --name theMicroservice
+# Create a web app
+az webapp create \
+  --name the-microservice \
+  --resource-group ModernDevDemoRG \
+  --plan the-microservice-plan-2022 \
+  --runtime NODE:16-lts
 
-# SSH into the VM
-ssh -i ~/.ssh/id_rsa sysadmin@20.31.113.139
-
-# Deploy & run the service
-HOSTNAME='20.31.113.139' && \
-USERNAME='sysadmin' && \
-WORK_DIR='/home/sysadmin/service/' && \
-ssh -i ~/.ssh/id_rsa $USERNAME@$HOSTNAME "mkdir -p $WORK_DIR" && \
-scp -i $HOME/.ssh/id_rsa /workspaces/the-microservice/*.js $USERNAME@$HOSTNAME:$WORK_DIR && \
-ssh -i ~/.ssh/id_rsa $USERNAME@$HOSTNAME "node $WORK_DIR/index.js >out.log 2>err.log &"
-
-# Smoke tests
-curl -G http://$HOSTNAME:3005
-curl -G http://$HOSTNAME:3005/api/data
-curl -G http://$HOSTNAME:3005/ap
+# Assign contributor role to the app
+# https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#assign-a-role-to-the-application
 ```
 
 ## Create deployment workflow
-
-```bash
-# Add secrets to the repository
-HOSTNAME='20.31.113.139'
-USERNAME='sysadmin'
-SSH_DEPLOYMENT_PRIVATE_KEY=$(cat ~/.ssh/id_rsa)
-```
 
 ```yaml
 name: Deploy service
@@ -130,6 +138,15 @@ on:
     branches:
       - main
   workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_WEBAPP_NAME: the-microservice # set this to your application's name
+  AZURE_WEBAPP_PACKAGE_PATH: '.'      # set this to your application's package path
+  NODE_VERSION: '16.x'                # set this to the node version to use
 
 jobs:
   deploy:
@@ -164,23 +181,17 @@ jobs:
             echo "Test 404: OK"
           fi
 
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@3c9b0fc6f2d223b8450b02a0445f526350fc73e0
+      - name: 'Az CLI login'
+        uses: azure/login@v1
         with:
-          key: ${{ secrets.SSH_DEPLOYMENT_PRIVATE_KEY }}
-          name: id_rsa
-          known_hosts: unnecessary
-          if_key_exists: ignore
-          config: |
-            Host *
-                StrictHostKeyChecking no
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy to production
-        run: |
-          TARGET_WORK_DIR="/home/${{ secrets.USERNAME }}/service"
-          scp -i $HOME/.ssh/id_rsa *.js ${{ secrets.USERNAME }}@${{ secrets.HOSTNAME }}:$TARGET_WORK_DIR
-          ssh -i $HOME/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.HOSTNAME }} "killall node"
-          ssh -i $HOME/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.HOSTNAME }} "node $TARGET_WORK_DIR/index.js >out.log 2>err.log &"
+      - uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
 
       - name: Setup tmate session
         if: ${{ failure() }}
@@ -197,3 +208,9 @@ gh run watch
 # Destroy the setup
 az group delete --name ModernDevDemoRG
 ```
+
+## References
+
+- <https://docs.microsoft.com/en-us/azure/app-service/deploy-github-actions?tabs=openid>
+- <https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure>
+- <https://docs.microsoft.com/en-us/azure/app-service/configure-language-nodejs?pivots=platform-linux>
