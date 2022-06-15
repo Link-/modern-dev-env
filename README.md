@@ -34,7 +34,7 @@ gh cs code -c <name>
  */
 
 const http = require('http');
-const port = process.env.SERVER_PORT || 3005;
+const port = process.env.PORT || 3005;
 
 const server = http.createServer((req, res) => {
   // Get the ip address of the requester
