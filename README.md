@@ -27,19 +27,22 @@ gh cs code -c <name>
 # Create an index.js file and write a simple web server
 #!/usr/bin/env node
 /**
- * Webserver for the webapp listening to port
- * 3005
+ * Web server listening on port 3005
+ * exposes the following endpoints:
+ *  - /
+ *  - /api/data
  */
-const http = require('http');
-const port = process.env.port || 3005;
 
-// Create an http server instance
+const http = require('http');
+const port = process.env.SERVER_PORT || 3005;
+
 const server = http.createServer((req, res) => {
-  // Get the request ip address
+  // Get the ip address of the requester
   const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  // Get the request url
+  // Log the request
+  console.log(`${ip} ${req.method} ${req.url}`);
+  // Respond to the request
   const url = req.url;
-  // Get the request method
   const method = req.method;
   switch(url) {
     case '/':
@@ -48,18 +51,21 @@ const server = http.createServer((req, res) => {
       break;
     case '/api/data':
       res.writeHead(200, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify([1,2,3,4,5]));
+      res.end(JSON.stringify({
+        message: 'Hello World',
+        ip: ip,
+        method: method
+      }));
       break;
     default:
       res.writeHead(404, {'Content-Type': 'text/html'});
       res.end('<h1>404 Not Found</h1>');
-      break;
   }
 });
 
-// Start the server 
+// Start the server
 server.listen(port, () => {
-  console.log(`Server is listening on port ${port}`);
+  console.log(`Server listening on port ${port}`);
 });
 
 # Push the changes
@@ -123,6 +129,20 @@ az webapp create \
   --resource-group ModernDevDemoRG \
   --plan the-microservice-plan-2022 \
   --runtime NODE:16-lts
+
+# Configure a different port
+az webapp config appsettings set \
+  --name the-microservice \
+  --resource-group ModernDevDemoRG \
+  --settings WEBSITES_PORT=8080
+
+# Get hostname
+az webapp list --query "[0].defaultHostName" --output tsv
+
+# Tests
+curl -G https://the-microservice.azurewebsites.net
+curl -G https://the-microservice.azurewebsites.net/api/data
+curl -G https://the-microservice.azurewebsites.net/something-else
 
 # Assign contributor role to the app
 # https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#assign-a-role-to-the-application
