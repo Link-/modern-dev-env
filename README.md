@@ -1,15 +1,25 @@
-# Setup
+# The Modern Development Environment
 
-## Create the app
+> TLDR; This repository is in association with the "Modern Development Environment" talk
+
+## Architecture
+
+![reference architecture diagram](./resources/architecture.png)
+
+## Setup
+
+### Create the app
+
+_Don't forget replace all placeholders, like `:value`_
 
 ```bash
-# Create repository in Bayrouth organization
-gh repo create --internal bayrouth/the-microservice
+# Create repository in an organisation
+gh repo create --internal :org/the-microservice
 
-# Clone repo
-gh repo clone bayrouth/the-microservice
+# Clone repo locally
+gh repo clone :org/the-microservice
 
-# Create a basic README file
+# Create a basic README file and initialise the repository
 echo "# The Microservice" > README.md
 git add .
 git commit -S -m "Add README.md"
@@ -22,7 +32,7 @@ gh repo view --web
 
 # Connect to codespace from local VSCode
 gh cs list
-gh cs code -c <name>
+gh cs code -c :name
 
 # Create an index.js file and write a simple web server
 #!/usr/bin/env node
@@ -81,11 +91,7 @@ git commit -S -m "Add web server implementation"
 git push -u origin main
 ```
 
-## Showcase the Azure AD App
-
-<https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Overview/appId/4bac9cd2-d03d-4b13-9728-e8e5bd0bba85/isMSAApp~/false>
-
-## Create the app service
+### Create the app service
 
 ```bash
 # Install azure-cli
@@ -95,19 +101,16 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 az login
 
 # Configure OIDC secrets on the repo
-# 70c59516-9e96-43f5-81c3-ab9bd78176e2
 gh secret set AZURE_TENANT_ID \
-  -R bayrouth/the-microservice \
+  -R :org/the-microservice \
   --body $(az account list --query "[0].tenantId" --output tsv)
 
-# 4bac9cd2-d03d-4b13-9728-e8e5bd0bba85
 gh secret set AZURE_CLIENT_ID \
-  -R bayrouth/the-microservice \
+  -R :org/the-microservice \
   --body $(az ad app list --query "[?displayName=='github-actions'].appId | [0]" --output tsv)
 
-# aa9ba7ff-8cbd-4fff-a0a9-bd9487062766
 gh secret set AZURE_SUBSCRIPTION_ID \
-  -R bayrouth/the-microservice \
+  -R :org/the-microservice \
   --body $(az account list --query "[0].id" --output tsv)
 
 # Create a new resource group
@@ -131,12 +134,6 @@ az webapp create \
   --plan the-microservice-plan-2022 \
   --runtime NODE:16-lts
 
-# Configure a different port
-# az webapp config appsettings set \
-#   --name the-microservice \
-#   --resource-group ModernDevDemoRG \
-#   --settings WEBSITES_PORT=8080
-
 # Get hostname
 az webapp list --query "[0].defaultHostName" --output tsv
 
@@ -144,12 +141,9 @@ az webapp list --query "[0].defaultHostName" --output tsv
 curl -G https://the-microservice.azurewebsites.net
 curl -G https://the-microservice.azurewebsites.net/api/v1/data
 curl -G https://the-microservice.azurewebsites.net/something-else
-
-# Assign contributor role to the app
-# https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#assign-a-role-to-the-application
 ```
 
-## Create deployment workflow
+### Create testing and deployment workflow
 
 ```yaml
 name: Deploy service
@@ -236,7 +230,7 @@ jobs:
 gh run watch
 ```
 
-## Nuke the setup
+### Nuke the setup
 
 ```bash
 # Destroy the setup
