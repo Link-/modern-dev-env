@@ -2,6 +2,9 @@
 
 > TLDR; This repository is in association with the "Modern Development Environment" talk
 
+- [Slide deck](./resources/deck.pdf)
+- [Architecture drawing source](architecture.drawio)
+
 ## Architecture
 
 ![reference architecture diagram](./resources/architecture.png)
