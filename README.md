@@ -11,6 +11,8 @@
 
 ## Setup
 
+⚠️ OIDC configuration instructions are not included below. I highly recommend following the [official documentation for this part](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure)
+
 ### Create the app
 
 _Don't forget replace all placeholders, like `:value`_
