@@ -170,11 +170,10 @@ env:
   NODE_VERSION: '16.x'                # set this to the node version to use
 
 jobs:
-  deploy:
-    name: Deploy to production
+  test:
+    name: Test the service
     runs-on: ubuntu-latest
     steps:
-
       - uses: actions/checkout@v2
         name: 'Checkout repository'
       
@@ -203,6 +202,18 @@ jobs:
           else
             echo "Test 404: OK"
           fi
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+
+  deploy:
+    name: Deploy to production
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        name: 'Checkout repository'
 
       - name: 'Az CLI login'
         uses: azure/login@v1
